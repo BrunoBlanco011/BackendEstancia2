@@ -23,7 +23,7 @@ class PostgreSQLSurveyRepository(ISurveyRepository):
             """
             
             cursor.execute(insert_query, (
-                survey.title,
+                survey.name_survey,
                 survey.description,
                 survey.created_by,
                 True
