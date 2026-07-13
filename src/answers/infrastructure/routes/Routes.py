@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Path
+from fastapi import APIRouter, Path, Depends
 from src.answers.infrastructure.controllers.CreateAnswerController import CreateAnswerController
 from src.answers.infrastructure.controllers.GetAllAnswersController import GetAllAnswersController
 from src.answers.infrastructure.controllers.GetAnswerByIdController import GetAnswerByIdController
@@ -7,6 +7,7 @@ from src.answers.infrastructure.controllers.GetAnswersByQuestionController impor
 from src.answers.infrastructure.controllers.UpdateAnswerController import UpdateAnswerController
 from src.answers.infrastructure.controllers.DeleteAnswerController import DeleteAnswerController
 from src.answers.domain.dto.AnswerRequest import CreateAnswerRequest, UpdateAnswerRequest
+from src.core.security.jwt_middleware import get_current_user, UserPrincipal
 
 
 def configure_answer_routes(
@@ -20,32 +21,48 @@ def configure_answer_routes(
     delete_answer_controller: DeleteAnswerController
 ):
     @router.post("/answers")
-    async def create_answer(request: CreateAnswerRequest):
+    async def create_answer(
+        request: CreateAnswerRequest,
+        current_user: UserPrincipal = Depends(get_current_user)
+    ):
         return await create_answer_controller.execute(request)
 
     @router.get("/answers")
-    async def get_all_answers():
+    async def get_all_answers(current_user: UserPrincipal = Depends(get_current_user)):
         return await get_all_answers_controller.execute()
 
     @router.get("/answers/{answer_id}")
-    async def get_answer_by_id(answer_id: int = Path(..., gt=0)):
+    async def get_answer_by_id(
+        answer_id: int = Path(..., gt=0),
+        current_user: UserPrincipal = Depends(get_current_user)
+    ):
         return await get_answer_by_id_controller.execute(answer_id)
 
     @router.get("/responses/{response_id}/answers")
-    async def get_answers_by_response(response_id: int = Path(..., gt=0)):
+    async def get_answers_by_response(
+        response_id: int = Path(..., gt=0),
+        current_user: UserPrincipal = Depends(get_current_user)
+    ):
         return await get_answers_by_response_controller.execute(response_id)
 
     @router.get("/questions/{question_id}/answers")
-    async def get_answers_by_question(question_id: int = Path(..., gt=0)):
+    async def get_answers_by_question(
+        question_id: int = Path(..., gt=0),
+        current_user: UserPrincipal = Depends(get_current_user)
+    ):
         return await get_answers_by_question_controller.execute(question_id)
 
     @router.put("/answers/{answer_id}")
     async def update_answer(
         answer_id: int = Path(..., gt=0),
-        request: UpdateAnswerRequest = None
+        request: UpdateAnswerRequest = None,
+        current_user: UserPrincipal = Depends(get_current_user)
     ):
         return await update_answer_controller.execute(answer_id, request)
 
     @router.delete("/answers/{answer_id}")
-    async def delete_answer(answer_id: int = Path(..., gt=0)):
+    async def delete_answer(
+        answer_id: int = Path(..., gt=0),
+        current_user: UserPrincipal = Depends(get_current_user)
+    ):
         return await delete_answer_controller.execute(answer_id)

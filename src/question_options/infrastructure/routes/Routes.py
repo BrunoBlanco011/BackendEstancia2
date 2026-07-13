@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Path
+from fastapi import APIRouter, Path, Depends
 from src.question_options.infrastructure.controllers.CreateQuestionOptionController import CreateQuestionOptionController
 from src.question_options.infrastructure.controllers.GetAllQuestionOptionsController import GetAllQuestionOptionsController
 from src.question_options.infrastructure.controllers.GetQuestionOptionByIdController import GetQuestionOptionByIdController
@@ -6,6 +6,7 @@ from src.question_options.infrastructure.controllers.GetOptionsByQuestionControl
 from src.question_options.infrastructure.controllers.UpdateQuestionOptionController import UpdateQuestionOptionController
 from src.question_options.infrastructure.controllers.DeleteQuestionOptionController import DeleteQuestionOptionController
 from src.question_options.domain.dto.QuestionOptionRequest import CreateQuestionOptionRequest, UpdateQuestionOptionRequest
+from src.core.security.jwt_middleware import get_current_user, UserPrincipal
 
 
 def configure_question_option_routes(
@@ -18,7 +19,10 @@ def configure_question_option_routes(
     delete_option_controller: DeleteQuestionOptionController
 ):
     @router.post("/question-options")
-    async def create_question_option(request: CreateQuestionOptionRequest):
+    async def create_question_option(
+        request: CreateQuestionOptionRequest,
+        current_user: UserPrincipal = Depends(get_current_user)
+    ):
         return await create_option_controller.execute(request)
 
     @router.get("/question-options")
@@ -36,10 +40,14 @@ def configure_question_option_routes(
     @router.put("/question-options/{option_id}")
     async def update_question_option(
         option_id: int = Path(..., gt=0),
-        request: UpdateQuestionOptionRequest = None
+        request: UpdateQuestionOptionRequest = None,
+        current_user: UserPrincipal = Depends(get_current_user)
     ):
         return await update_option_controller.execute(option_id, request)
 
     @router.delete("/question-options/{option_id}")
-    async def delete_question_option(option_id: int = Path(..., gt=0)):
+    async def delete_question_option(
+        option_id: int = Path(..., gt=0),
+        current_user: UserPrincipal = Depends(get_current_user)
+    ):
         return await delete_option_controller.execute(option_id)

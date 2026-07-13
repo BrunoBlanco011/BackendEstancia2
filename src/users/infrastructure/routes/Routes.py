@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Path, UploadFile, File, Form
+from fastapi import APIRouter, Path, UploadFile, File, Form, Depends
 from src.users.infrastructure.controllers.CreateUserController import CreateUserController
 from src.users.infrastructure.controllers.GetAllUsersController import GetAllUsersController
 from src.users.infrastructure.controllers.GetUserByIdController import GetUserByIdController
@@ -6,6 +6,7 @@ from src.users.infrastructure.controllers.UpdateUserController import UpdateUser
 from src.users.infrastructure.controllers.DeleteUserController import DeleteUserController
 from src.users.infrastructure.controllers.AuthController import AuthController
 from src.users.domain.dto.UserRequest import LoginRequest
+from src.core.security.jwt_middleware import get_current_user, UserPrincipal
 from typing import Optional
 
 
@@ -32,11 +33,14 @@ def configure_user_routes(
         )
 
     @router.get("/users")
-    async def get_all_users():
+    async def get_all_users(current_user: UserPrincipal = Depends(get_current_user)):
         return await get_all_users_controller.execute()
 
     @router.get("/users/{user_id}")
-    async def get_user_by_id(user_id: int = Path(..., gt=0)):
+    async def get_user_by_id(
+            user_id: int = Path(..., gt=0),
+            current_user: UserPrincipal = Depends(get_current_user)
+    ):
         return await get_by_id_user_controller.execute(user_id)
 
     @router.put("/users/{user_id}")
@@ -45,14 +49,18 @@ def configure_user_routes(
             name: Optional[str] = Form(None),
             lastName: Optional[str] = Form(None),
             email: Optional[str] = Form(None),
-            profileImage: Optional[UploadFile] = File(None)
+            profileImage: Optional[UploadFile] = File(None),
+            current_user: UserPrincipal = Depends(get_current_user)
     ):
         return await update_user_controller.execute(
             user_id, name, lastName, email, profileImage
         )
 
     @router.delete("/users/{user_id}")
-    async def delete_user(user_id: int = Path(..., gt=0)):
+    async def delete_user(
+            user_id: int = Path(..., gt=0),
+            current_user: UserPrincipal = Depends(get_current_user)
+    ):
         return await delete_user_controller.execute(user_id)
 
     @router.post("/auth/login")

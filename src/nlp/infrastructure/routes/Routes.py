@@ -1,7 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import Optional
 from src.nlp.infrastructure.controllers.NLPController import NLPController
+from src.core.security.jwt_middleware import get_current_user, UserPrincipal
 
 
 class ExtractKeywordsRequest(BaseModel):
@@ -32,10 +33,13 @@ def configure_nlp_routes(
     """Configura las rutas del módulo NLP"""
     
     @api_router.post("/nlp/extract-keywords")
-    async def extract_keywords(request: ExtractKeywordsRequest):
+    async def extract_keywords(
+        request: ExtractKeywordsRequest,
+        current_user: UserPrincipal = Depends(get_current_user)
+    ):
         """
         Extrae palabras clave simples de un texto
-        
+
         - **text**: Texto a procesar
         - **min_length**: Longitud mínima de palabras (default: 3)
         - **language**: Idioma ('spanish' o 'english', default: 'spanish')
@@ -45,12 +49,15 @@ def configure_nlp_routes(
             min_length=request.min_length,
             language=request.language
         )
-    
+
     @api_router.post("/nlp/extract-ranked-keywords")
-    async def extract_ranked_keywords(request: ExtractAndRankKeywordsRequest):
+    async def extract_ranked_keywords(
+        request: ExtractAndRankKeywordsRequest,
+        current_user: UserPrincipal = Depends(get_current_user)
+    ):
         """
         Extrae palabras clave con ranking por frecuencia
-        
+
         - **text**: Texto a procesar
         - **min_length**: Longitud mínima de palabras (default: 3)
         - **language**: Idioma ('spanish' o 'english', default: 'spanish')
@@ -62,12 +69,15 @@ def configure_nlp_routes(
             language=request.language,
             top_n=request.top_n
         )
-    
+
     @api_router.post("/nlp/extract-phrases")
-    async def extract_phrases(request: ExtractPhrasesRequest):
+    async def extract_phrases(
+        request: ExtractPhrasesRequest,
+        current_user: UserPrincipal = Depends(get_current_user)
+    ):
         """
         Extrae frases (n-gramas) de un texto
-        
+
         - **text**: Texto a procesar
         - **phrase_length**: Longitud de las frases en palabras (1-5, default: 2)
         - **language**: Idioma ('spanish' o 'english', default: 'spanish')

@@ -1,7 +1,7 @@
-from fastapi import Request, HTTPException, status
+from fastapi import Request, HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
-from src.core import AuthService, Claims
+from src.core.security.auth import AuthService, Claims
 
 
 class UserPrincipal:
@@ -13,7 +13,9 @@ class UserPrincipal:
 security = HTTPBearer()
 
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials) -> UserPrincipal:
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> UserPrincipal:
     token = credentials.credentials
 
     claims = AuthService.validate_jwt(token)

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Path
+from fastapi import APIRouter, Path, Depends
 from src.questions.infrastructure.controllers.CreateQuestionController import CreateQuestionController
 from src.questions.infrastructure.controllers.GetAllQuestionsController import GetAllQuestionsController
 from src.questions.infrastructure.controllers.GetQuestionByIdController import GetQuestionByIdController
@@ -6,6 +6,7 @@ from src.questions.infrastructure.controllers.GetQuestionsBySurveyController imp
 from src.questions.infrastructure.controllers.UpdateQuestionController import UpdateQuestionController
 from src.questions.infrastructure.controllers.DeleteQuestionController import DeleteQuestionController
 from src.questions.domain.dto.QuestionRequest import CreateQuestionRequest, UpdateQuestionRequest
+from src.core.security.jwt_middleware import get_current_user, UserPrincipal
 
 
 def configure_question_routes(
@@ -18,7 +19,10 @@ def configure_question_routes(
     delete_question_controller: DeleteQuestionController
 ):
     @router.post("/questions")
-    async def create_question(request: CreateQuestionRequest):
+    async def create_question(
+        request: CreateQuestionRequest,
+        current_user: UserPrincipal = Depends(get_current_user)
+    ):
         return await create_question_controller.execute(request)
 
     @router.get("/questions")
@@ -36,10 +40,14 @@ def configure_question_routes(
     @router.put("/questions/{question_id}")
     async def update_question(
         question_id: int = Path(..., gt=0),
-        request: UpdateQuestionRequest = None
+        request: UpdateQuestionRequest = None,
+        current_user: UserPrincipal = Depends(get_current_user)
     ):
         return await update_question_controller.execute(question_id, request)
 
     @router.delete("/questions/{question_id}")
-    async def delete_question(question_id: int = Path(..., gt=0)):
+    async def delete_question(
+        question_id: int = Path(..., gt=0),
+        current_user: UserPrincipal = Depends(get_current_user)
+    ):
         return await delete_question_controller.execute(question_id)

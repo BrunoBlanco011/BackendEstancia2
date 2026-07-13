@@ -23,52 +23,62 @@ class WordExtractionService:
         self.spanish_stopwords = set(stopwords.words('spanish'))
         self.english_stopwords = set(stopwords.words('english'))
     
+    def _filter_tokens(
+        self,
+        text: str,
+        min_length: int,
+        language: str
+    ) -> List[str]:
+        """
+        Tokeniza y filtra un texto (sin deduplicar): solo palabras alfabéticas,
+        sin stopwords y con la longitud mínima requerida.
+        """
+        if not text or len(text.strip()) == 0:
+            return []
+
+        text_lower = text.lower()
+        tokens = word_tokenize(text_lower)
+        stopwords_set = self.spanish_stopwords if language == 'spanish' else self.english_stopwords
+
+        filtered = []
+        for token in tokens:
+            clean_token = re.sub(r'[^\w]', '', token)
+
+            if (clean_token
+                and len(clean_token) >= min_length
+                and clean_token not in stopwords_set
+                and clean_token.isalpha()):
+                filtered.append(clean_token)
+
+        return filtered
+
     def extract_keywords(
-        self, 
-        text: str, 
+        self,
+        text: str,
         min_length: int = 3,
         language: str = 'spanish'
     ) -> List[str]:
         """
         Extrae palabras clave de un texto
-        
+
         Args:
             text: Texto del cual extraer palabras
             min_length: Longitud mínima de palabras a considerar
             language: Idioma ('spanish' o 'english')
-        
+
         Returns:
             Lista de palabras clave únicas y procesadas
         """
-        if not text or len(text.strip()) == 0:
-            return []
-        
-        # Convertir a minúsculas
-        text_lower = text.lower()
-        
-        # Tokenizar
-        tokens = word_tokenize(text_lower)
-        
-        # Seleccionar stopwords según idioma
-        stopwords_set = self.spanish_stopwords if language == 'spanish' else self.english_stopwords
-        
-        # Filtrar: solo palabras alfanuméricas, sin stopwords y con longitud mínima
+        filtered = self._filter_tokens(text, min_length, language)
+
         keywords = []
         seen = set()
-        
-        for token in tokens:
-            # Eliminar puntuación y caracteres especiales
-            clean_token = re.sub(r'[^\w]', '', token)
-            
-            # Validar que cumpla criterios
-            if (clean_token 
-                and len(clean_token) >= min_length 
-                and clean_token not in stopwords_set
-                and clean_token.isalpha()
-                and clean_token not in seen):
-                keywords.append(clean_token)
-                seen.add(clean_token)
-        
+
+        for token in filtered:
+            if token not in seen:
+                keywords.append(token)
+                seen.add(token)
+
         return keywords
     
     def extract_and_rank_keywords(
@@ -90,22 +100,22 @@ class WordExtractionService:
         Returns:
             Dict con 'keywords' (list) y 'frequency' (dict)
         """
-        keywords = self.extract_keywords(text, min_length, language)
-        
-        # Contar frecuencias
+        filtered = self._filter_tokens(text, min_length, language)
+
+        # Contar frecuencias sobre todas las ocurrencias (sin deduplicar)
         frequency = {}
-        for keyword in keywords:
+        for keyword in filtered:
             frequency[keyword] = frequency.get(keyword, 0) + 1
-        
+
         # Ordenar por frecuencia
         ranked = sorted(frequency.items(), key=lambda x: x[1], reverse=True)
         top_keywords = [word for word, _ in ranked[:top_n]]
-        
+
         return {
             'keywords': top_keywords,
             'frequency': dict(ranked[:top_n]),
-            'total_keywords': len(keywords),
-            'unique_keywords': len(set(keywords))
+            'total_keywords': len(filtered),
+            'unique_keywords': len(frequency)
         }
     
     def extract_phrases(
