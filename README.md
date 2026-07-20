@@ -123,12 +123,18 @@ Prefijo común: `/api`
 
 ## Variables de entorno (`.env`)
 
+Ver plantilla completa en [`.env.example`](.env.example). Resumen:
+
 ```
 DATABASE_URL=mysql://usuario:password@host:puerto/nombre_db
 JWT_SECRET=<secreto fuerte, no el default hardcodeado>
 CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
+ALLOWED_ORIGINS=*            # dominios del frontend separados por coma en produccion
+HOST=0.0.0.0
+PORT=8000
+RELOAD=false
 ```
 
 ## Correr localmente
@@ -146,10 +152,66 @@ Servidor en `http://127.0.0.1:8000`, docs interactivas en `/docs`.
 
 ## Cosas a revisar antes de producción (Contabo)
 
-1. `JWT_SECRET` debe salir del código (ver arriba) y ser un valor random fuerte en el `.env` de producción.
-2. Completar credenciales de `CLOUDINARY_*` en el `.env` de producción.
-3. `CORS` en `main.py` permite `allow_origins=["*"]` junto con `allow_credentials=True` — restringir al dominio real del frontend.
-4. `uvicorn.run(..., reload=True)` en `main.py` es para desarrollo; en producción correr sin `reload`, idealmente detrás de un proceso manager (systemd) y un reverse proxy (nginx).
-5. No hay tabla `roles` ni autorización por rol — `role_id` se guarda pero no se usa para restringir nada.
-6. La protección JWT no valida ownership del recurso (ver sección "Autenticación y rutas protegidas" arriba).
-7. `spacy` y `scikit-learn` están en `requirements.txt` pero no se usan en el código (`nlp` solo usa `nltk`) — se pueden quitar si se quiere aligerar la instalación.
+1. ✅ `JWT_SECRET` sale del código vía `os.getenv`; solo falta poner un valor random fuerte en el `.env` de producción (ver `.env.example`, incluye el comando para generarlo).
+2. ⏳ Completar credenciales de `CLOUDINARY_*` en el `.env` de producción (las de dev ya están en `.env` local, no se suben a git).
+3. ✅ `CORS` ahora lee `ALLOWED_ORIGINS` del `.env` (lista separada por coma). Por defecto sigue en `*` — cambiarlo al dominio real del frontend en producción.
+4. ✅ `reload=True` ahora depende de la variable `RELOAD` (default `false`). El `Dockerfile` corre `uvicorn` directo sin reload.
+5. No hay tabla `roles` ni autorización por rol — `role_id` se guarda pero no se usa para restringir nada. (Pendiente, no bloquea el despliegue.)
+6. La protección JWT no valida ownership del recurso (ver sección "Autenticación y rutas protegidas" arriba). (Pendiente, no bloquea el despliegue.)
+7. ✅ `spacy` y `scikit-learn` quitados de `requirements.txt` (no se usaban, `nlp` solo usa `nltk`) — imagen Docker más liviana y build más rápido.
+
+## Despliegue en Contabo (Docker + nginx + HTTPS sin dominio propio)
+
+Todo el stack corre en contenedores: la API (`app`), MySQL (`db`), un reverse proxy
+(`nginx`) y renovación automática de certificados (`certbot`). Archivos relevantes:
+[`Dockerfile`](Dockerfile), [`docker-compose.yml`](docker-compose.yml),
+[`.env.example`](.env.example), [`deploy/nginx/templates/app.conf.template`](deploy/nginx/templates/app.conf.template)
+y [`deploy/certbot/init-letsencrypt.sh`](deploy/certbot/init-letsencrypt.sh).
+
+**¿Cómo se consigue HTTPS sin tener un dominio propio?** Usando [nip.io](https://nip.io):
+un servicio de DNS gratuito que resuelve `<tu-ip>.nip.io` directamente a esa IP, sin
+registrar nada. Con eso, Let's Encrypt sí puede emitir un certificado real y válido
+(a diferencia de un certificado autofirmado, no muestra advertencias en el navegador).
+
+En el VPS (Ubuntu/Debian):
+
+```bash
+# 1. Instalar Docker y Docker Compose (si no están)
+curl -fsSL https://get.docker.com | sh
+
+# 2. Clonar el repo
+git clone <url-del-repo> backend && cd backend
+
+# 3. Configurar variables de entorno de producción
+cp .env.example .env
+nano .env
+# completar: JWT_SECRET, CLOUDINARY_*, MYSQL_ROOT_PASSWORD, ALLOWED_ORIGINS,
+# LETSENCRYPT_EMAIL y DOMAIN (usa la IP pública del VPS, ej: 203.0.113.42.nip.io)
+
+# 4. Abrir los puertos 80 y 443 en el firewall del VPS (si usas ufw)
+sudo ufw allow 80,443/tcp
+
+# 5. Levantar la app y la base de datos (create_tables.sql se ejecuta solo la primera vez)
+docker compose up -d --build db app
+
+# 6. Verificar que la API responde internamente
+docker compose exec app curl http://127.0.0.1:8000/health
+
+# 7. Emitir el certificado HTTPS (solo la primera vez)
+bash deploy/certbot/init-letsencrypt.sh
+
+# 8. Levantar el resto del stack (nginx + renovación automática de certbot)
+docker compose up -d
+```
+
+A partir de ahí, la API queda disponible en `https://<DOMAIN>` (ej. `https://203.0.113.42.nip.io`).
+El puerto 8000 de `app` ya no se publica al exterior — solo `nginx` es accesible desde
+fuera del VPS, y hace de proxy hacia `app` dentro de la red interna de Docker.
+El servicio `certbot` corre en segundo plano y renueva el certificado automáticamente
+antes de que expire (cada 12h revisa si toca renovar).
+
+Si en el futuro consigues un dominio propio, solo cambia `DOMAIN` en el `.env` y vuelve
+a correr `init-letsencrypt.sh` (bórralo antes de `deploy/certbot/conf/live/<dominio-viejo>`
+si cambias de dominio).
+
+Para actualizar tras un cambio de código: `git pull && docker compose up -d --build`.

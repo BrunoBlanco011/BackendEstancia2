@@ -7,3 +7,9 @@ venv/
 # Cache de Python
 __pycache__/
 *.pyc
+
+# Certificados generados por certbot (se regeneran con init-letsencrypt.sh)
+deploy/certbot/conf/*
+!deploy/certbot/conf/.gitkeep
+deploy/certbot/www/*
+!deploy/certbot/www/.gitkeep

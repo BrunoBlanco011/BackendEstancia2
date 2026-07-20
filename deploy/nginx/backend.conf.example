@@ -1,0 +1,27 @@
+# ALTERNATIVA: nginx instalado directamente en el host (sin Docker) y con un
+# dominio propio real. El setup recomendado del proyecto ya incluye nginx y
+# certbot como contenedores (ver docker-compose.yml + deploy/certbot/), que
+# funciona incluso sin dominio propio (usando nip.io). Usa este archivo solo
+# si prefieres instalar nginx fuera de Docker y ya tienes un dominio.
+#
+# Copiar a /etc/nginx/sites-available/backend, ajustar el dominio,
+# habilitar con: ln -s /etc/nginx/sites-available/backend /etc/nginx/sites-enabled/
+# y despues correr certbot para HTTPS:
+#   sudo certbot --nginx -d api.tudominio.com
+
+server {
+    listen 80;
+    server_name api.tudominio.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Necesario para uploads de archivos grandes (multipart/form-data)
+        client_max_body_size 25M;
+    }
+}

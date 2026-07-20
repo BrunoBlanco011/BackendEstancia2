@@ -11,5 +11,3 @@ bcrypt==4.2.1
 cloudinary==1.44.1
 python-multipart==0.0.9
 nltk==3.8.1
-spacy==3.7.2
-scikit-learn==1.5.1
