@@ -32,10 +32,23 @@ rsa_key_size=4096
 
 mkdir -p "$conf_path/live/$DOMAIN" "$www_path"
 
-if [ ! -e "$conf_path/options-ssl-nginx.conf" ] || [ ! -e "$conf_path/ssl-dhparams.pem" ]; then
-  echo "### Descargando configuracion TLS recomendada de certbot ..."
-  curl -s https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf > "$conf_path/options-ssl-nginx.conf"
-  curl -s https://raw.githubusercontent.com/certbot/certbot/master/certbot/certbot/ssl-dhparams.pem > "$conf_path/ssl-dhparams.pem"
+if [ ! -e "$conf_path/options-ssl-nginx.conf" ]; then
+  echo "### Escribiendo configuracion TLS recomendada ..."
+  cat > "$conf_path/options-ssl-nginx.conf" <<'EOF'
+ssl_session_cache shared:le_nginx_SSL:10m;
+ssl_session_timeout 1440m;
+ssl_session_tickets off;
+
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_prefer_server_ciphers off;
+
+ssl_ciphers "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384";
+EOF
+fi
+
+if [ ! -e "$conf_path/ssl-dhparams.pem" ]; then
+  echo "### Generando parametros Diffie-Hellman (puede tardar ~1 min) ..."
+  openssl dhparam -out "$conf_path/ssl-dhparams.pem" 2048
 fi
 
 echo "### Creando certificado dummy para que nginx pueda arrancar ..."
