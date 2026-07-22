@@ -29,12 +29,25 @@ services:
     expose:
       - "8000"
 
+  # Frontend (SPA de Vite/React), repo aparte clonado al lado de este ("../FrontendEstancia2").
+  # Se buildea con nginx sirviendo los estaticos; no se publica al exterior,
+  # el nginx "gateway" de abajo lo proxea en la ruta "/".
+  frontend:
+    build:
+      context: ../FrontendEstancia2
+      args:
+        VITE_API_URL: https://${DOMAIN}/api
+    restart: unless-stopped
+    expose:
+      - "80"
+
   # Reverse proxy: unico servicio expuesto al exterior (80/443).
   nginx:
     image: nginx:1.27-alpine
     restart: unless-stopped
     depends_on:
       - app
+      - frontend
     environment:
       DOMAIN: ${DOMAIN}
     ports:

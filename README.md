@@ -162,10 +162,11 @@ Servidor en `http://127.0.0.1:8000`, docs interactivas en `/docs`.
 
 ## Despliegue en Contabo (Docker + nginx + HTTPS sin dominio propio)
 
-Todo el stack corre en contenedores: la API (`app`), MySQL (`db`), un reverse proxy
-(`nginx`) y renovación automática de certificados (`certbot`). Archivos relevantes:
-[`Dockerfile`](Dockerfile), [`docker-compose.yml`](docker-compose.yml),
-[`.env.example`](.env.example), [`deploy/nginx/templates/app.conf.template`](deploy/nginx/templates/app.conf.template)
+Todo el stack corre en contenedores: la API (`app`), MySQL (`db`), el frontend
+(`frontend`, repo aparte), un reverse proxy (`nginx`) y renovación automática de
+certificados (`certbot`). Archivos relevantes: [`Dockerfile`](Dockerfile),
+[`docker-compose.yml`](docker-compose.yml), [`.env.example`](.env.example),
+[`deploy/nginx/templates/app.conf.template`](deploy/nginx/templates/app.conf.template)
 y [`deploy/certbot/init-letsencrypt.sh`](deploy/certbot/init-letsencrypt.sh).
 
 **¿Cómo se consigue HTTPS sin tener un dominio propio?** Usando [nip.io](https://nip.io):
@@ -173,26 +174,41 @@ un servicio de DNS gratuito que resuelve `<tu-ip>.nip.io` directamente a esa IP,
 registrar nada. Con eso, Let's Encrypt sí puede emitir un certificado real y válido
 (a diferencia de un certificado autofirmado, no muestra advertencias en el navegador).
 
+**¿Y el frontend?** Se sirve desde el mismo dominio y el mismo `nginx`, sin necesidad
+de otro dominio ni otro servidor: `nginx` enruta `/api/*` (y `/docs`, `/health`) hacia
+`app`, y todo lo demás (`/`) hacia el contenedor `frontend` (una build estática del SPA
+servida por su propio nginx interno). Como frontend y API quedan bajo el mismo origen
+(`https://<DOMAIN>`), las llamadas del navegador a la API son *same-origin* — no hace
+falta configurar CORS para que funcione. El contenedor `frontend` se buildea a partir
+del repo `FrontendEstancia2`, que debe estar clonado **al lado** de este (mismo padre),
+porque `docker-compose.yml` referencia `../FrontendEstancia2` como build context.
+
 En el VPS (Ubuntu/Debian):
 
 ```bash
 # 1. Instalar Docker y Docker Compose (si no están)
 curl -fsSL https://get.docker.com | sh
 
-# 2. Clonar el repo
-git clone <url-del-repo> backend && cd backend
+# 2. Clonar AMBOS repos, uno al lado del otro
+git clone <url-del-repo-backend> backend
+git clone <url-del-repo-frontend> FrontendEstancia2
+cd backend
 
 # 3. Configurar variables de entorno de producción
 cp .env.example .env
 nano .env
 # completar: JWT_SECRET, CLOUDINARY_*, MYSQL_ROOT_PASSWORD, ALLOWED_ORIGINS,
 # LETSENCRYPT_EMAIL y DOMAIN (usa la IP pública del VPS, ej: 203.0.113.42.nip.io)
+# DOMAIN se usa tanto para el certificado como para bakear VITE_API_URL del
+# frontend en build time (https://<DOMAIN>/api) — no hace falta tocar nada
+# en el repo del frontend.
 
 # 4. Abrir los puertos 80 y 443 en el firewall del VPS (si usas ufw)
 sudo ufw allow 80,443/tcp
 
-# 5. Levantar la app y la base de datos (create_tables.sql se ejecuta solo la primera vez)
-docker compose up -d --build db app
+# 5. Levantar la app, la base de datos y el frontend (create_tables.sql se ejecuta
+# solo la primera vez)
+docker compose up -d --build db app frontend
 
 # 6. Verificar que la API responde internamente
 docker compose exec app curl http://127.0.0.1:8000/health
@@ -204,14 +220,18 @@ bash deploy/certbot/init-letsencrypt.sh
 docker compose up -d
 ```
 
-A partir de ahí, la API queda disponible en `https://<DOMAIN>` (ej. `https://203.0.113.42.nip.io`).
-El puerto 8000 de `app` ya no se publica al exterior — solo `nginx` es accesible desde
-fuera del VPS, y hace de proxy hacia `app` dentro de la red interna de Docker.
+A partir de ahí, el frontend queda disponible en `https://<DOMAIN>` y la API en
+`https://<DOMAIN>/api` (ej. `https://203.0.113.42.nip.io`). Los puertos 8000 (`app`) y
+80 de `frontend` ya no se publican al exterior — solo `nginx` es accesible desde fuera
+del VPS, y hace de proxy hacia ambos dentro de la red interna de Docker.
 El servicio `certbot` corre en segundo plano y renueva el certificado automáticamente
 antes de que expire (cada 12h revisa si toca renovar).
 
-Si en el futuro consigues un dominio propio, solo cambia `DOMAIN` en el `.env` y vuelve
-a correr `init-letsencrypt.sh` (bórralo antes de `deploy/certbot/conf/live/<dominio-viejo>`
+Si en el futuro consigues un dominio propio, solo cambia `DOMAIN` en el `.env`, corre
+`docker compose up -d --build frontend` (para rebakear `VITE_API_URL`) y vuelve a
+correr `init-letsencrypt.sh` (bórralo antes de `deploy/certbot/conf/live/<dominio-viejo>`
 si cambias de dominio).
 
-Para actualizar tras un cambio de código: `git pull && docker compose up -d --build`.
+Para actualizar tras un cambio de código:
+- Backend: `git pull && docker compose up -d --build app`
+- Frontend: `cd ../FrontendEstancia2 && git pull && cd ../backend && docker compose up -d --build frontend`
